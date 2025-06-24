@@ -1,0 +1,74 @@
+SCRAPE ORDER,NAME,CITY,CREDENTIAL,NUMBER,ISSUE DATE,EXP DATE,STATUS,County
+1,Lisa McFarren,guys mills,CRSS,4625,12/27/2024,12/27/2026,Active,Crawford
+3,Michael Krafick,kittanning,CRSS,7478,03/10/2021,01/31/2026,Active,Armstrong
+8,Edward Walsh,scranton,CRSS,2579,10/17/2022,02/06/2026,Active,Lackawanna
+11,Melissa Shifler,dillsburg,CRSS,7566,04/12/2021,06/15/2026,Active,York
+14,Charles Olinger,"poland, oh",CRSS,8126,02/21/2024,02/21/2026,Active,
+16,Susan Kline,lansdale,CRSS,8060,10/15/2024,10/15/2026,Active,Montgomery
+18,Adrienne Smith,tarentum,CRSS,8414,05/04/2022,05/04/2026,Active,Allegheny
+22,Brad Schweitzer,birdsboro,CRSS,8934,04/29/2021,06/27/2026,Active,Berks
+29,Dawn Ramsey,king of prussia,CRSS,9096,02/03/2025,02/03/2027,Active,Montgomery
+32,Adam Sledd,downingtown,CRSS,9144,02/27/2021,02/27/2027,Active,Chester
+34,Scott Theurer,washington boro,CRSS,9739,02/14/2022,02/14/2026,Active,Lancaster
+36,Regina Higgins,prospect park,CRSS,9778,02/17/2021,09/09/2026,Active,Delaware
+42,Cheyenne Bowen-Holgash,friendsville,CRSS,9815,08/25/2023,08/25/2025,Active,Susquehanna
+44,Heather Fechtenburg,levittown,CRSS,10023,03/31/2021,01/31/2027,Active,Bucks
+47,Andrew Neel,altoona,CRSS,10058,06/29/2022,06/29/2026,Active,Blair
+50,Sheri Peifly,lancaster,CRSS,10082,07/19/2023,07/19/2025,Active,Lancaster
+53,Tara Calderbank,perkasie,CRSS,9174,06/19/2021,05/08/2027,Active,Bucks
+57,Keith Elders,johnstown,CRSS,10135,02/23/2023,05/30/2027,Active,Cambria
+60,Theresa Abbey,erie,CRSS,10187,08/05/2024,06/14/2027,Active,Erie
+64,Mary Butera,exeter,CRSS,10284,08/24/2022,08/24/2024,Lapsed,
+66,Keah Patterson,oley,CRSS,10302,04/21/2022,06/29/2025,Active,Berks
+68,Hannah Rafter,lock haven,CRSS,10369,10/24/2022,10/24/2024,Lapsed,Clinton
+70,Janice Olson,greensburg,CRSS,10430,08/26/2024,08/26/2026,Active,Westmoreland
+72,Sandra Salensky,tarentum,CRSS,10433,07/05/2022,07/05/2026,Active,Allegheny
+75,Alison Dunn,bristol,CRSS,10658,01/28/2022,01/18/2026,Active,Bucks
+79,Jennifer Colon,williamsport,CRSS,10571,08/25/2022,08/25/2024,Lapsed,Lycoming
+81,Rebecca Moyer,newmanstown,CRSS,10711,04/16/2021,04/16/2027,Active,Lebanon
+85,William Davis,mountaintop,CRSS,10678,04/05/2022,04/05/2026,Active,Luzerne
+87,Jose Lugo,reading,CRSS,10791,04/14/2025,04/14/2027,Active,Berks
+89,Darren Fickes,mc connellsburg,CRSS,10807,03/07/2022,03/07/2026,Active,Fulton
+93,Donald Altemus,coatesville,CRSS,11275,04/17/2021,04/17/2027,Active,Chester
+99,Becky Decker,milan,CRSS,11335,08/03/2022,08/03/2024,Lapsed,Bradford
+101,Peter Shafer,ligonier,CRSS,11525,02/09/2023,05/30/2026,Active,Westmoreland
+104,Jason Catalano,pen argyl,CRSS,11566,04/06/2021,06/05/2026,Active,Northampton
+107,Reid Dutchess,altoona,CRSS,11746,07/31/2024,07/31/2026,Active,Blair
+111,Leonard Burnett,philadelphia,CRSS,11598,12/19/2024,12/19/2026,Active,Philadelphia
+115,Jody Kulakowski,punxsutawney,CRSS,11692,05/15/2023,05/15/2027,Active,Jefferson
+118,Aimee Clark,feasterville trevose,CRSS,11990,10/09/2021,10/09/2023,Expired,Bucks
+128,Joshua Curry,washington,CRSS,12258,02/28/2022,02/28/2026,Active,Washington
+132,Kathleen  Walker,york,CRSS,12466,08/05/2022,11/06/2026,Active,York
+134,Marcella  Bicksler,shavertown,CRSS,12533,08/11/2023,11/28/2026,Active,Luzerne
+138,Jacqueline Donahue,west chester,CRSS,13072,06/07/2024,06/07/2026,Active,Chester
+141,"John Elburn, III",philadelphia,CRSS,13113,09/06/2024,09/06/2026,Active,Philadelphia
+144,Felicia Fehr,wind gap,CRSS,13332,11/17/2021,11/17/2025,Active,Northampton
+147,Melanie Eaton,grove city,CRSS,13805,08/24/2022,07/02/2027,Active,Mercer
+151,"Randall Williams, II",mc kees rocks,CRSS,13816,06/12/2025,06/12/2027,Active,Allegheny
+154,Michael Minauro,philadelphia,CRSS,14418,01/27/2023,08/20/2025,Active,Philadelphia
+157,Elizabeth Morrison,philadelphia,CRSS,15141,01/13/2025,01/13/2027,Active,Philadelphia
+160,Christopher Golding,"west deptford, nj",CRSS,15200,06/29/2022,06/29/2026,Active,
+162,Gregory Young,west chester,CRSS,15305,07/24/2024,07/24/2026,Active,Chester
+165,Joseph Willhoft III,washington,CRSS,15562,11/04/2022,11/04/2024,Lapsed,Washington
+168,Elizabeth Haskin,port allegany,CRSS,15615,05/22/2023,11/05/2026,Active,Mckean
+171,Justin Wright,catasauqua,CRSS,15894,06/02/2023,06/02/2025,Lapsed,Lehigh
+173,Justin Cravener,york,CRSS,15851,06/20/2023,06/20/2027,Active,York
+177,Lynn  Brown,greenfild twp,CRSS,15973,05/11/2021,05/11/2025,Lapsed,
+181,Colin Suber,wrightsville,CRSS,16335,04/10/2023,04/10/2025,Ethics Violation,York
+183,Suzanna Bonnevier,east york,CRSS,17323,10/17/2023,10/17/2025,Active,
+186,Kristin Mull,jeannette,CRSS,16018,03/06/2025,03/06/2027,Active,Westmoreland
+188,Kenneth Harris,philadelphia,CRSS,16299,01/17/2025,01/17/2027,Active,Philadelphia
+190,Katherine Diaz,bensalem,CRSS,16666,05/27/2025,05/27/2027,Active,Bucks
+192,Donna Fawcett,pittsburgh,CRSS,16671,05/09/2025,05/09/2027,Active,Allegheny
+194,Leah Kuhn,springdale,CRSS,21740,03/19/2025,03/19/2027,Active,Allegheny
+197,Beth Konzel,erie,CRSS,16947,12/12/2024,12/12/2026,Active,Erie
+199,Jared Lutz,harrisburg,CRSS,16300,08/24/2022,08/24/2024,Ethics Violation,Dauphin
+201,Kelly Rhodes,stoystown,CRSS,16353,08/19/2024,08/19/2026,Active,Somerset
+203,Edward Knee,york,CRSS,17442,10/11/2024,10/11/2026,Active,York
+205,Rosemary Velez,philadelphia,CRSS,17223,01/21/2025,01/21/2027,Active,Philadelphia
+207,Karen Rush,huntingdon,CRSS,18921,10/29/2024,10/29/2026,Active,Huntingdon
+210,Krystyn Wartluft,harrisburg,CRSS,17631,04/18/2023,04/18/2027,Active,Dauphin
+211,Amanda Primrose,pittsburgh,CRSS,19225,09/30/2023,09/30/2025,Active,Allegheny
+212,Danielle McLaughlin,leesport,CRSS,21002,10/15/2024,10/15/2026,Active,Berks
+213,Amanda Webreck,berlin,CRSS,21810,04/07/2025,04/07/2027,Active,Somerset
+215,Markecia Anderson,philadelphia,CRSS,21360,01/12/2025,01/12/2027,Active,Philadelphia

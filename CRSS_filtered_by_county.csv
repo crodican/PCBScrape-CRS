@@ -1,0 +1,26 @@
+SCRAPE ORDER,NAME,CITY,CREDENTIAL,NUMBER,ISSUE DATE,EXP DATE,STATUS,County
+16,Susan Kline,lansdale,CRSS,8060,10/15/2024,10/15/2026,Active,Montgomery
+22,Brad Schweitzer,birdsboro,CRSS,8934,04/29/2021,06/27/2026,Active,Berks
+29,Dawn Ramsey,king of prussia,CRSS,9096,02/03/2025,02/03/2027,Active,Montgomery
+32,Adam Sledd,downingtown,CRSS,9144,02/27/2021,02/27/2027,Active,Chester
+34,Scott Theurer,washington boro,CRSS,9739,02/14/2022,02/14/2026,Active,Lancaster
+36,Regina Higgins,prospect park,CRSS,9778,02/17/2021,09/09/2026,Active,Delaware
+44,Heather Fechtenburg,levittown,CRSS,10023,03/31/2021,01/31/2027,Active,Bucks
+50,Sheri Peifly,lancaster,CRSS,10082,07/19/2023,07/19/2025,Active,Lancaster
+53,Tara Calderbank,perkasie,CRSS,9174,06/19/2021,05/08/2027,Active,Bucks
+66,Keah Patterson,oley,CRSS,10302,04/21/2022,06/29/2025,Active,Berks
+75,Alison Dunn,bristol,CRSS,10658,01/28/2022,01/18/2026,Active,Bucks
+87,Jose Lugo,reading,CRSS,10791,04/14/2025,04/14/2027,Active,Berks
+93,Donald Altemus,coatesville,CRSS,11275,04/17/2021,04/17/2027,Active,Chester
+111,Leonard Burnett,philadelphia,CRSS,11598,12/19/2024,12/19/2026,Active,Philadelphia
+118,Aimee Clark,feasterville trevose,CRSS,11990,10/09/2021,10/09/2023,Expired,Bucks
+138,Jacqueline Donahue,west chester,CRSS,13072,06/07/2024,06/07/2026,Active,Chester
+141,"John Elburn, III",philadelphia,CRSS,13113,09/06/2024,09/06/2026,Active,Philadelphia
+154,Michael Minauro,philadelphia,CRSS,14418,01/27/2023,08/20/2025,Active,Philadelphia
+157,Elizabeth Morrison,philadelphia,CRSS,15141,01/13/2025,01/13/2027,Active,Philadelphia
+162,Gregory Young,west chester,CRSS,15305,07/24/2024,07/24/2026,Active,Chester
+188,Kenneth Harris,philadelphia,CRSS,16299,01/17/2025,01/17/2027,Active,Philadelphia
+190,Katherine Diaz,bensalem,CRSS,16666,05/27/2025,05/27/2027,Active,Bucks
+205,Rosemary Velez,philadelphia,CRSS,17223,01/21/2025,01/21/2027,Active,Philadelphia
+212,Danielle McLaughlin,leesport,CRSS,21002,10/15/2024,10/15/2026,Active,Berks
+215,Markecia Anderson,philadelphia,CRSS,21360,01/12/2025,01/12/2027,Active,Philadelphia
