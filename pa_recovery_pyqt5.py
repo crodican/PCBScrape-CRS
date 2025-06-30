@@ -12,10 +12,17 @@ from PyQt5.QtWidgets import (
     QPushButton, QProgressBar, QTextEdit, QFileDialog, QSizePolicy
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QIcon  # <-- Added QIcon here
 
 COUNTY_URL = "https://resourcespage.pages.dev/pa_cities_counties.csv"
 HEADERS = {'User-Agent': 'Mozilla/5.0'}
+
+CREDENTIALS = ["CRS", "CFRS", "CRSS"]
+SELECTED_COUNTIES = [
+    'Philadelphia', 'Berks', 'Bucks', 'Chester',
+    'Delaware', 'Lancaster', 'Montgomery', 'Schuylkill'
+]
+DELAY_BETWEEN_CREDENTIALS = 10  # seconds
 
 # --- Scraping Functions ---
 def get_city_county_df(output_lines):
@@ -47,13 +54,13 @@ def get_total_pages(base_url, output_lines):
             return 98
     return 98
 
-def scrape_website(base_url, total_pages, output_lines, progress_callback=None):
+def scrape_website(base_url, total_pages, output_lines, progress_callback=None, cred_tag=""):
     all_data = []
     scrape_index = 0
 
     for page in range(total_pages):
         url = f"{base_url}&page={page}"
-        msg = f"🔍 Scraping page {page + 1} of {total_pages}"
+        msg = f"🔍 [{cred_tag}] Scraping page {page + 1} of {total_pages}"
         output_lines.append(msg)
         if progress_callback:
             progress_callback(page+1, total_pages, msg)
@@ -61,7 +68,7 @@ def scrape_website(base_url, total_pages, output_lines, progress_callback=None):
             response = requests.get(url)
             response.raise_for_status()
         except:
-            output_lines.append(f"⚠️ Failed to load {url}")
+            output_lines.append(f"⚠️ [{cred_tag}] Failed to load {url}")
             continue
 
         soup = BeautifulSoup(response.content, 'html.parser')
@@ -120,8 +127,11 @@ class RecoverySpecialistApp(QWidget):
         self.setMinimumSize(700, 600)
         self.setStyleSheet("""
             QWidget { background: #fff; }
-            #Header { background: rgb(234, 94, 100); }
-            #HeaderLabel { color: white; font-size: 48px; font-weight: bold; font-family: Arial Black; letter-spacing: 2px; background: transparent; }
+            #Header { 
+                background: rgb(234, 94, 100);
+                text-transform: uppercase;
+            }
+            #HeaderLabel { color: white; font-size: 48px; font-weight: bold; font-family: Arial Black; letter-spacing: 2px; background: transparent; text-transform: uppercase; }
             QPushButton {
                 background-color: #12b2e8;
                 color: white;
@@ -141,16 +151,18 @@ class RecoverySpecialistApp(QWidget):
                 background-color: #000;
                 color: white;
             }
-            #DownloadBtn {
+            #DownloadAllBtn, #DownloadCountyBtn {
                 background: #ea5e64;
                 color: white;
                 font-size: 24px;
                 font-weight: bold;
                 border-radius: 7px;
-                min-width: 240px;
+                min-width: 280px;
                 min-height: 48px;
+                margin-left: 10px;
+                margin-right: 10px;
             }
-            #DownloadBtn:hover {
+            #DownloadAllBtn:hover, #DownloadCountyBtn:hover {
                 background: #000;
             }
             QLabel#CredLabel {
@@ -223,23 +235,17 @@ class RecoverySpecialistApp(QWidget):
         header_layout.addWidget(header_label)
         main_layout.addWidget(self.header)
 
-        # Credential selector
-        cred_label = QLabel("Select a Credential", self)
+        # Credential selector info
+        cred_label = QLabel("This tool will scrape all three credentials: CRS, CFRS, CRSS", self)
         cred_label.setObjectName("CredLabel")
         cred_label.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(cred_label)
 
-        btns_widget = QWidget(self)
-        btns_layout = QVBoxLayout(btns_widget)
-        btns_layout.setAlignment(Qt.AlignHCenter)
-        self.btns = []
-        for cred in ["CRS", "CFRS", "CRSS"]:
-            btn = QPushButton(f"GET {cred} DATA", btns_widget)
-            btn.clicked.connect(lambda _, c=cred: self.start_scrape(c))
-            btn.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
-            self.btns.append(btn)
-            btns_layout.addWidget(btn)
-        main_layout.addWidget(btns_widget)
+        # Get Data Button
+        self.get_data_btn = QPushButton("GET DATA", self)
+        self.get_data_btn.clicked.connect(self.start_scrape)
+        self.get_data_btn.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+        main_layout.addWidget(self.get_data_btn, alignment=Qt.AlignCenter)
 
         # Status/progress and show output
         self.status_widget = QWidget(self)
@@ -270,16 +276,26 @@ class RecoverySpecialistApp(QWidget):
         self.log_box.setVisible(False)
         main_layout.addWidget(self.log_box)
 
-        # Download Button
-        self.download_btn = QPushButton("DOWNLOAD DATA", self)
-        self.download_btn.setObjectName("DownloadBtn")
-        self.download_btn.clicked.connect(self.download_data)
-        self.download_btn.setVisible(False)
-        main_layout.addWidget(self.download_btn, alignment=Qt.AlignCenter)
+        # Download Buttons
+        btns_hbox = QHBoxLayout()
+        self.download_all_btn = QPushButton("DOWNLOAD STATEWIDE DATA", self)
+        self.download_all_btn.setObjectName("DownloadAllBtn")
+        self.download_all_btn.clicked.connect(self.download_all)
+        self.download_all_btn.setVisible(False)
+        btns_hbox.addWidget(self.download_all_btn)
+
+        self.download_county_btn = QPushButton("DOWNLOAD SELECTED COUNTIES DATA", self)
+        self.download_county_btn.setObjectName("DownloadCountyBtn")
+        self.download_county_btn.clicked.connect(self.download_county)
+        self.download_county_btn.setVisible(False)
+        btns_hbox.addWidget(self.download_county_btn)
+
+        main_layout.addLayout(btns_hbox)
 
         # State
         self.full_output_lines = []
-        self.data_files = None
+        self.all_excel_path = None
+        self.county_excel_path = None
         self.log_expanded = False
 
         # Threaded scraping
@@ -288,64 +304,84 @@ class RecoverySpecialistApp(QWidget):
         self.c.line.connect(self.append_log)
         self.c.done.connect(self.scrape_done)
 
-    def start_scrape(self, cred):
+    def start_scrape(self):
         # Reset UI
         self.full_output_lines = []
         self.log_box.clear()
         self.log_box.setVisible(False)
-        self.download_btn.setVisible(False)
+        self.download_all_btn.setVisible(False)
+        self.download_county_btn.setVisible(False)
         self.progress.setValue(0)
         self.status_line.setText("")
         self.show_output_btn.setText("SHOW OUTPUT")
         self.log_expanded = False
-        for btn in self.btns:
-            btn.setDisabled(True)
-        self.data_files = None
+        self.get_data_btn.setDisabled(True)
+        self.all_excel_path = None
+        self.county_excel_path = None
         # Start thread
-        threading.Thread(target=self.scrape_worker, args=(cred,), daemon=True).start()
+        threading.Thread(target=self.scrape_worker, daemon=True).start()
 
-    def scrape_worker(self, credential_choice):
+    def scrape_worker(self):
         try:
+            self.c.line.emit("--- Starting Combined Scrape for CRS, CFRS, CRSS ---")
             # Progress helper
             def progress_callback(current, total, msg):
                 self.c.progress.emit(current, total, msg)
                 self.c.line.emit(msg)
-            target_credential = credential_choice
-            base_url = f"https://www.pacertboard.org/credential-search?type={target_credential.lower()}"
+
             city_county_df = get_city_county_df(self.full_output_lines)
             if city_county_df.empty:
                 self.c.line.emit("❌ City-county data is required. Exiting.")
-                self.c.done.emit((None, None, None))
+                self.c.done.emit((None, None))
                 return
-            total_pages = get_total_pages(base_url, self.full_output_lines)
-            df = scrape_website(base_url, total_pages, self.full_output_lines, progress_callback=progress_callback)
-            df['CITY'] = df['CITY'].str.strip().str.lower()
-            df = df.merge(city_county_df, how='left', left_on='CITY', right_on='City')
-            if 'City' in df.columns:
-                df.drop(columns=['City'], inplace=True)
-            df = df[df['CREDENTIAL'].str.contains(target_credential, na=False)]
-            df.sort_values(by='SCRAPE ORDER', inplace=True)
-            # CSV output
-            all_csv = f"{target_credential}_all_PA.csv"
-            df.to_csv(all_csv, index=False)
-            # Filtered by county
-            target_counties = [
-                'Philadelphia', 'Berks', 'Bucks', 'Chester',
-                'Delaware', 'Lancaster', 'Montgomery', 'Schuylkill'
-            ]
-            county_df = df[df['County'].isin(target_counties)]
-            filtered_csv = f"{target_credential}_filtered_by_county.csv"
-            county_df.to_csv(filtered_csv, index=False)
-            # Excel file with two sheets
-            excel_file = f"{target_credential}_output.xlsx"
-            with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
-                df.to_excel(writer, sheet_name='All PA', index=False)
-                county_df.to_excel(writer, sheet_name='Selected Counties', index=False)
-            self.c.line.emit("✅ Done! All files generated and ready to download.")
-            self.c.done.emit((excel_file, all_csv, filtered_csv))
+
+            all_cred_data = {}
+            all_cred_county_data = {}
+
+            for idx, cred in enumerate(CREDENTIALS):
+                self.c.line.emit(f"=== Scraping credential: {cred} ({idx+1}/3) ===")
+                base_url = f"https://www.pacertboard.org/credential-search?type={cred.lower()}"
+                total_pages = get_total_pages(base_url, self.full_output_lines)
+                df = scrape_website(
+                    base_url, total_pages, self.full_output_lines,
+                    progress_callback=lambda c, t, m, cred=cred: self.c.progress.emit(
+                        int((idx + c/float(t))/len(CREDENTIALS)*100), 100, f"[{cred}] {m}"),
+                    cred_tag=cred
+                )
+                if df.empty:
+                    self.c.line.emit(f"⚠️ No data found for {cred}")
+                    continue
+                df['CITY'] = df['CITY'].str.strip().str.lower()
+                df = df.merge(city_county_df, how='left', left_on='CITY', right_on='City')
+                if 'City' in df.columns:
+                    df.drop(columns=['City'], inplace=True)
+                df = df[df['CREDENTIAL'].str.contains(cred, na=False)]
+                df.sort_values(by='SCRAPE ORDER', inplace=True)
+                all_cred_data[cred] = df
+
+                county_df = df[df['County'].isin(SELECTED_COUNTIES)]
+                all_cred_county_data[cred] = county_df
+
+                if idx < len(CREDENTIALS) - 1:
+                    self.c.line.emit(f"⏳ Waiting {DELAY_BETWEEN_CREDENTIALS}s before next credential scrape...")
+                    time.sleep(DELAY_BETWEEN_CREDENTIALS)
+
+            # Output: write one Excel file per output type, each with three sheets
+            all_excel = "PA_recovery_specialists_all_statewide.xlsx"
+            with pd.ExcelWriter(all_excel, engine='openpyxl') as writer:
+                for cred, df in all_cred_data.items():
+                    df.to_excel(writer, sheet_name=f"{cred} All PA", index=False)
+            county_excel = "PA_recovery_specialists_selected_counties.xlsx"
+            with pd.ExcelWriter(county_excel, engine='openpyxl') as writer:
+                for cred, df in all_cred_county_data.items():
+                    df.to_excel(writer, sheet_name=f"{cred} Selected Counties", index=False)
+
+            self.c.line.emit("✅ Done! Both Excel files generated and ready to download.")
+            self.c.done.emit((all_excel, county_excel))
+
         except Exception as e:
             self.c.line.emit(f"❌ Error: {e}")
-            self.c.done.emit((None, None, None))
+            self.c.done.emit((None, None))
 
     def set_progress(self, current, total, msg):
         percent = int((current/total)*100) if total else 0
@@ -374,33 +410,37 @@ class RecoverySpecialistApp(QWidget):
                 self.status_line.setText(self.full_output_lines[-1])
 
     def scrape_done(self, file_tuple):
-        for btn in self.btns:
-            btn.setDisabled(False)
-        self.data_files = file_tuple
-        if all(file_tuple):
-            self.download_btn.setVisible(True)
-        else:
-            self.download_btn.setVisible(False)
+        self.get_data_btn.setDisabled(False)
+        self.all_excel_path, self.county_excel_path = file_tuple
+        self.download_all_btn.setVisible(bool(self.all_excel_path))
+        self.download_county_btn.setVisible(bool(self.county_excel_path))
 
-    def download_data(self):
-        if not self.data_files or not all(self.data_files):
+    def download_all(self):
+        self._download_file(self.all_excel_path, "Save statewide data file")
+
+    def download_county(self):
+        self._download_file(self.county_excel_path, "Save selected counties data file")
+
+    def _download_file(self, file_path, dialog_title):
+        if not file_path or not os.path.exists(file_path):
+            self.append_log(f"File not found: {file_path}")
             return
-        folder = QFileDialog.getExistingDirectory(self, "Choose folder to save data files")
+        folder = QFileDialog.getExistingDirectory(self, dialog_title)
         if not folder:
             return
-        for f in self.data_files:
-            try:
-                dest = os.path.join(folder, os.path.basename(f))
-                with open(f, "rb") as src, open(dest, "wb") as dst:
-                    dst.write(src.read())
-            except Exception as e:
-                msg = f"Failed to save {f}: {e}"
-                self.append_log(msg)
-        msg = "Files saved to: " + folder
-        self.append_log(msg)
+        try:
+            dest = os.path.join(folder, os.path.basename(file_path))
+            with open(file_path, "rb") as src, open(dest, "wb") as dst:
+                dst.write(src.read())
+            msg = f"File saved to: {dest}"
+            self.append_log(msg)
+        except Exception as e:
+            msg = f"Failed to save {file_path}: {e}"
+            self.append_log(msg)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    app.setWindowIcon(QIcon("icon.ico"))  # <-- This sets the icon for the taskbar/titlebar
     window = RecoverySpecialistApp()
     window.show()
     sys.exit(app.exec_())
