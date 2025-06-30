@@ -5,14 +5,28 @@ import requests
 import pandas as pd
 import time
 import io
+import pickle
 from bs4 import BeautifulSoup
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QProgressBar, QTextEdit, QFileDialog, QSizePolicy
+    QPushButton, QProgressBar, QTextEdit, QFileDialog, QSizePolicy, QTabWidget,
+    QGroupBox, QScrollArea, QFrame, QMenu, QDialog
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
-from PyQt5.QtGui import QFont, QIcon  # <-- Added QIcon here
+from PyQt5.QtGui import QFont, QIcon
+
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import inch
+
+# Cache file names
+CACHE_ALL_EXCEL = "cached_all_statewide.xlsx"
+CACHE_COUNTY_EXCEL = "cached_selected_counties.xlsx"
+CACHE_PICKLE = "cached_cred_data.pkl"
+CACHE_META = "cache_metadata.txt"
 
 COUNTY_URL = "https://resourcespage.pages.dev/pa_cities_counties.csv"
 HEADERS = {'User-Agent': 'Mozilla/5.0'}
@@ -22,6 +36,7 @@ SELECTED_COUNTIES = [
     'Philadelphia', 'Berks', 'Bucks', 'Chester',
     'Delaware', 'Lancaster', 'Montgomery', 'Schuylkill'
 ]
+REGION_4_COUNTIES = [c for c in SELECTED_COUNTIES if c != "Philadelphia"]
 DELAY_BETWEEN_CREDENTIALS = 10  # seconds
 
 # --- Scraping Functions ---
@@ -57,7 +72,6 @@ def get_total_pages(base_url, output_lines):
 def scrape_website(base_url, total_pages, output_lines, progress_callback=None, cred_tag=""):
     all_data = []
     scrape_index = 0
-
     for page in range(total_pages):
         url = f"{base_url}&page={page}"
         msg = f"🔍 [{cred_tag}] Scraping page {page + 1} of {total_pages}"
@@ -118,6 +132,229 @@ class Communicate(QObject):
     line = pyqtSignal(str)
     done = pyqtSignal(tuple)
 
+# --- Report Window ---
+class ReportWindow(QDialog):
+    def __init__(self, all_cred_data, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Recovery Specialist Report")
+        self.resize(960, 800)
+        self.setMinimumSize(800, 600)
+        self.setWindowIcon(QIcon("icon.ico"))
+        self.all_cred_data = all_cred_data  # dict of {cred: df}
+
+        # Ensure tab_keys is set before build_report_summary
+        self.tab_keys = [
+            "All", "Philadelphia", "Region 4",
+            "Berks", "Bucks", "Chester", "Delaware", "Lancaster", "Montgomery", "Schuylkill"
+        ]
+        self.report_summary = self.build_report_summary()
+        # Main layout
+        layout = QVBoxLayout(self)
+
+        # Top: Download button (menu)
+        hbox = QHBoxLayout()
+        hbox.addStretch()
+        self.download_btn = QPushButton("DOWNLOAD REPORT")
+        menu = QMenu(self)
+        pdf_action = menu.addAction("Download as PDF")
+        excel_action = menu.addAction("Download as Excel")
+        self.download_btn.setMenu(menu)
+        pdf_action.triggered.connect(self.download_pdf)
+        excel_action.triggered.connect(self.download_excel)
+        hbox.addWidget(self.download_btn)
+        layout.addLayout(hbox)
+
+        # Tabs
+        self.tabs = QTabWidget(self)
+        self.tabs.setDocumentMode(True)
+        self.tabs.setTabPosition(QTabWidget.North)
+        # Add tabs
+        for key in self.tab_keys:
+            tab = self.create_county_tab(key)
+            self.tabs.addTab(tab, key)
+        layout.addWidget(self.tabs)
+
+    def build_report_summary(self):
+        # Returns: {tab_name: summary_dict}
+        # summary_dict: {
+        #   "total": {"CRS": N, "CFRS": N, "CRSS": N},
+        #   "months": {month_label: {"issued": {...}, "expired": {...}}}
+        # }
+        # Months: from current month, back to July previous year
+        # Dates in format: "ISSUE DATE", "EXP DATE" in df (may be empty)
+        now = datetime.now()
+        # Start from this month, back to July previous year
+        first_month = datetime(now.year-1, 7, 1) if now.month >= 7 else datetime(now.year-2, 7, 1)
+        months = []
+        dt = datetime(now.year, now.month, 1)
+        while dt >= first_month:
+            months.append(dt)
+            dt -= relativedelta(months=1)
+        months = [m for m in months]
+        month_labels = [m.strftime("%B %Y") for m in months]
+
+        # Build a helper for county filter on each tab
+        def get_county_filter(df, tabkey):
+            if tabkey == "All":
+                return df
+            if tabkey == "Region 4":
+                return df[df['County'].isin(REGION_4_COUNTIES)]
+            if tabkey in SELECTED_COUNTIES:
+                return df[df['County'] == tabkey]
+            if tabkey == "Philadelphia":
+                return df[df['County'] == "Philadelphia"]
+            return df
+
+        summary = {}
+        for tab in self.tab_keys:
+            tab_info = {"total": {}, "months": {}}
+            for cred in CREDENTIALS:
+                df = self.all_cred_data.get(cred, pd.DataFrame())
+                dff = get_county_filter(df, tab)
+                tab_info["total"][cred] = len(dff)
+            for m, mlabel in zip(months, month_labels):
+                minfo = {"issued": {}, "expired": {}}
+                for cred in CREDENTIALS:
+                    df = self.all_cred_data.get(cred, pd.DataFrame())
+                    dff = get_county_filter(df, tab)
+                    # Parse dates
+                    issued = pd.to_datetime(dff["ISSUE DATE"], errors="coerce")
+                    expired = pd.to_datetime(dff["EXP DATE"], errors="coerce")
+                    # Count issued in month
+                    issued_in_month = ((issued.dt.year == m.year) & (issued.dt.month == m.month))
+                    expired_in_month = ((expired.dt.year == m.year) & (expired.dt.month == m.month))
+                    minfo["issued"][cred] = int(issued_in_month.sum())
+                    minfo["expired"][cred] = int(expired_in_month.sum())
+                tab_info["months"][mlabel] = minfo
+            summary[tab] = tab_info
+        self._months_list = month_labels
+        return summary
+
+    def create_county_tab(self, tabkey):
+        # Frame with a vertical layout, scrollable
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        content = QWidget()
+        vbox = QVBoxLayout(content)
+
+        summary = self.report_summary.get(tabkey, {})
+        total = summary.get("total", {})
+        months = summary.get("months", {})
+
+        # Totals
+        total_box = QGroupBox("Total Credentials")
+        total_layout = QHBoxLayout(total_box)
+        for cred in CREDENTIALS:
+            lbl = QLabel(f"<b>{cred}:</b> {total.get(cred,0)}")
+            total_layout.addWidget(lbl)
+        total_layout.addStretch()
+        vbox.addWidget(total_box)
+
+        # Per month cards
+        for mlabel in self._months_list:
+            minfo = months.get(mlabel, {})
+            card = QGroupBox(f"{mlabel}")
+            card_layout = QVBoxLayout(card)
+            # Issued
+            issued_line = "  ".join([f"<b>{cred}</b>: {minfo.get('issued',{}).get(cred,0)}" for cred in CREDENTIALS])
+            issued_lab = QLabel(f"Issued: {issued_line}")
+            issued_lab.setStyleSheet("margin-bottom:3px;")
+            card_layout.addWidget(issued_lab)
+            # Expired
+            expired_line = "  ".join([f"<b>{cred}</b>: {minfo.get('expired',{}).get(cred,0)}" for cred in CREDENTIALS])
+            hr = QFrame()
+            hr.setFrameShape(QFrame.HLine)
+            hr.setFrameShadow(QFrame.Sunken)
+            card_layout.addWidget(hr)
+            expired_lab = QLabel(f"Expired: {expired_line}")
+            card_layout.addWidget(expired_lab)
+            vbox.addWidget(card)
+        vbox.addStretch()
+        scroll.setWidget(content)
+        return scroll
+
+    def download_pdf(self):
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save PDF Report", "", "PDF Files (*.pdf)")
+        if not file_path:
+            return
+        try:
+            export_report_to_pdf(self.report_summary, self._months_list, file_path)
+        except Exception as e:
+            msgbox = QDialog(self)
+            v = QVBoxLayout(msgbox)
+            v.addWidget(QLabel(f"Failed to export PDF: {e}"))
+            msgbox.exec_()
+
+    def download_excel(self):
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Excel Report", "", "Excel Files (*.xlsx)")
+        if not file_path:
+            return
+        try:
+            export_report_to_excel(self.report_summary, self._months_list, file_path)
+        except Exception as e:
+            msgbox = QDialog(self)
+            v = QVBoxLayout(msgbox)
+            v.addWidget(QLabel(f"Failed to export Excel: {e}"))
+            msgbox.exec_()
+
+# --- Export helpers ---
+def export_report_to_pdf(report_summary, months_list, file_path):
+    c = canvas.Canvas(file_path, pagesize=letter)
+    width, height = letter
+    left = inch
+    top = height - inch
+    y = top
+    c.setFont("Helvetica-Bold", 18)
+    c.drawString(left, y, "Recovery Specialist Credential Report")
+    y -= 32
+    c.setFont("Helvetica", 12)
+    for tab, summary in report_summary.items():
+        c.setFont("Helvetica-Bold", 15)
+        c.drawString(left, y, f"{tab} County")
+        y -= 18
+        c.setFont("Helvetica", 12)
+        t = summary.get("total", {})
+        c.drawString(left, y, f"Total: CRS: {t.get('CRS',0)}   CFRS: {t.get('CFRS',0)}   CRSS: {t.get('CRSS',0)}")
+        y -= 18
+        for mlabel in months_list:
+            m = summary['months'][mlabel]
+            c.setFont("Helvetica-Bold", 11)
+            c.drawString(left, y, f"{mlabel}:")
+            y -= 13
+            c.setFont("Helvetica", 10)
+            c.drawString(left+12, y, f"Issued - CRS: {m['issued']['CRS']}  CFRS: {m['issued']['CFRS']}  CRSS: {m['issued']['CRSS']}")
+            y -= 11
+            c.drawString(left+12, y, f"Expired - CRS: {m['expired']['CRS']}  CFRS: {m['expired']['CFRS']}  CRSS: {m['expired']['CRSS']}")
+            y -= 15
+            if y < inch:
+                c.showPage()
+                y = top
+        y -= 28
+        if y < inch:
+            c.showPage()
+            y = top
+    c.save()
+
+def export_report_to_excel(report_summary, months_list, file_path):
+    # Each tab is a worksheet
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        for tab, summary in report_summary.items():
+            rows = []
+            t = summary.get("total", {})
+            rows.append(["Total", t.get("CRS",0), t.get("CFRS",0), t.get("CRSS",0)])
+            rows.append(["", "", "", ""])
+            rows.append(["Month", "Issued CRS", "Issued CFRS", "Issued CRSS", "Expired CRS", "Expired CFRS", "Expired CRSS"])
+            for mlabel in months_list:
+                m = summary['months'][mlabel]
+                row = [
+                    mlabel,
+                    m['issued']['CRS'], m['issued']['CFRS'], m['issued']['CRSS'],
+                    m['expired']['CRS'], m['expired']['CFRS'], m['expired']['CRSS']
+                ]
+                rows.append(row)
+            df = pd.DataFrame(rows)
+            df.to_excel(writer, sheet_name=tab[:30], header=False, index=False)
+
 # --- Main App ---
 class RecoverySpecialistApp(QWidget):
     def __init__(self):
@@ -125,13 +362,11 @@ class RecoverySpecialistApp(QWidget):
         self.setWindowTitle("Pennsylvania Recovery Specialist Data Tool")
         self.resize(1100, 800)
         self.setMinimumSize(700, 600)
+        self.setWindowIcon(QIcon("icon.ico"))
         self.setStyleSheet("""
             QWidget { background: #fff; }
-            #Header { 
-                background: rgb(234, 94, 100);
-                text-transform: uppercase;
-            }
-            #HeaderLabel { color: white; font-size: 48px; font-weight: bold; font-family: Arial Black; letter-spacing: 2px; background: transparent; text-transform: uppercase; }
+            #Header { background: rgb(234, 94, 100); }
+            #HeaderLabel { color: white; font-size: 48px; font-weight: bold; font-family: Arial Black; letter-spacing: 2px; background: transparent; }
             QPushButton {
                 background-color: #12b2e8;
                 color: white;
@@ -290,6 +525,23 @@ class RecoverySpecialistApp(QWidget):
         self.download_county_btn.setVisible(False)
         btns_hbox.addWidget(self.download_county_btn)
 
+        # Report Buttons
+        self.show_report_btn = QPushButton("SHOW REPORT", self)
+        self.show_report_btn.setVisible(False)
+        self.show_report_btn.clicked.connect(self.show_report_window)
+        btns_hbox.addWidget(self.show_report_btn)
+
+        self.download_report_btn = QPushButton("DOWNLOAD REPORT", self)
+        self.download_report_btn.setVisible(False)
+        # Attach menu
+        self.report_menu = QMenu(self)
+        self.download_pdf_action = self.report_menu.addAction("Download as PDF")
+        self.download_excel_action = self.report_menu.addAction("Download as Excel")
+        self.download_report_btn.setMenu(self.report_menu)
+        btns_hbox.addWidget(self.download_report_btn)
+        self.download_pdf_action.triggered.connect(self.download_report_as_pdf)
+        self.download_excel_action.triggered.connect(self.download_report_as_excel)
+
         main_layout.addLayout(btns_hbox)
 
         # State
@@ -297,12 +549,37 @@ class RecoverySpecialistApp(QWidget):
         self.all_excel_path = None
         self.county_excel_path = None
         self.log_expanded = False
+        self.all_cred_data = {}  # {cred: df}
+        self.report_summary = None
+        self.months_list = None
 
         # Threaded scraping
         self.c = Communicate()
         self.c.progress.connect(self.set_progress)
         self.c.line.connect(self.append_log)
         self.c.done.connect(self.scrape_done)
+
+        # Try to load cache on startup
+        self.load_cache()
+
+    def load_cache(self):
+        if os.path.exists(CACHE_PICKLE):
+            try:
+                self.all_cred_data = pd.read_pickle(CACHE_PICKLE)
+                self.all_excel_path = CACHE_ALL_EXCEL if os.path.exists(CACHE_ALL_EXCEL) else None
+                self.county_excel_path = CACHE_COUNTY_EXCEL if os.path.exists(CACHE_COUNTY_EXCEL) else None
+                self.show_report_btn.setVisible(True)
+                self.download_report_btn.setVisible(True)
+                self.download_all_btn.setVisible(bool(self.all_excel_path))
+                self.download_county_btn.setVisible(bool(self.county_excel_path))
+                self.append_log("✅ Loaded cached data.")
+                if os.path.exists(CACHE_META):
+                    with open(CACHE_META, "r") as f:
+                        self.status_line.setText(f"Loaded cached data from {f.read().strip()}")
+                return True
+            except Exception as e:
+                self.append_log(f"❌ Failed to load cache: {e}")
+        return False
 
     def start_scrape(self):
         # Reset UI
@@ -311,6 +588,8 @@ class RecoverySpecialistApp(QWidget):
         self.log_box.setVisible(False)
         self.download_all_btn.setVisible(False)
         self.download_county_btn.setVisible(False)
+        self.show_report_btn.setVisible(False)
+        self.download_report_btn.setVisible(False)
         self.progress.setValue(0)
         self.status_line.setText("")
         self.show_output_btn.setText("SHOW OUTPUT")
@@ -318,6 +597,9 @@ class RecoverySpecialistApp(QWidget):
         self.get_data_btn.setDisabled(True)
         self.all_excel_path = None
         self.county_excel_path = None
+        self.all_cred_data = {}
+        self.report_summary = None
+        self.months_list = None
         # Start thread
         threading.Thread(target=self.scrape_worker, daemon=True).start()
 
@@ -376,9 +658,17 @@ class RecoverySpecialistApp(QWidget):
                 for cred, df in all_cred_county_data.items():
                     df.to_excel(writer, sheet_name=f"{cred} Selected Counties", index=False)
 
+            self.all_cred_data = all_cred_data
+
+            # Save cache
+            pd.to_pickle(all_cred_data, CACHE_PICKLE)
+            with open(CACHE_META, "w") as f:
+                f.write(datetime.now().strftime("%Y-%m-%d %H:%M"))
+            os.replace(all_excel, CACHE_ALL_EXCEL)
+            os.replace(county_excel, CACHE_COUNTY_EXCEL)
+
             self.c.line.emit("✅ Done! Both Excel files generated and ready to download.")
             self.c.done.emit((all_excel, county_excel))
-
         except Exception as e:
             self.c.line.emit(f"❌ Error: {e}")
             self.c.done.emit((None, None))
@@ -414,6 +704,11 @@ class RecoverySpecialistApp(QWidget):
         self.all_excel_path, self.county_excel_path = file_tuple
         self.download_all_btn.setVisible(bool(self.all_excel_path))
         self.download_county_btn.setVisible(bool(self.county_excel_path))
+        self.show_report_btn.setVisible(bool(self.all_cred_data))
+        self.download_report_btn.setVisible(bool(self.all_cred_data))
+        if os.path.exists(CACHE_META):
+            with open(CACHE_META, "r") as f:
+                self.status_line.setText(f"Loaded/cached data from {f.read().strip()}")
 
     def download_all(self):
         self._download_file(self.all_excel_path, "Save statewide data file")
@@ -438,9 +733,34 @@ class RecoverySpecialistApp(QWidget):
             msg = f"Failed to save {file_path}: {e}"
             self.append_log(msg)
 
+    def show_report_window(self):
+        if not self.all_cred_data:
+            return
+        dlg = ReportWindow(self.all_cred_data, self)
+        dlg.exec_()
+
+    def download_report_as_pdf(self):
+        # Prepare summary and months
+        if not self.all_cred_data:
+            return
+        summary_win = ReportWindow(self.all_cred_data)
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save PDF Report", "", "PDF Files (*.pdf)")
+        if not file_path:
+            return
+        export_report_to_pdf(summary_win.report_summary, summary_win._months_list, file_path)
+
+    def download_report_as_excel(self):
+        if not self.all_cred_data:
+            return
+        summary_win = ReportWindow(self.all_cred_data)
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Excel Report", "", "Excel Files (*.xlsx)")
+        if not file_path:
+            return
+        export_report_to_excel(summary_win.report_summary, summary_win._months_list, file_path)
+
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon("icon.ico"))  # <-- This sets the icon for the taskbar/titlebar
+    app.setWindowIcon(QIcon("icon.ico"))
     window = RecoverySpecialistApp()
     window.show()
     sys.exit(app.exec_())

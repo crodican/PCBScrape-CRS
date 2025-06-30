@@ -1,0 +1,7 @@
+PyQt5
+requests
+pandas
+openpyxl
+beautifulsoup4
+reportlab
+python-dateutil
