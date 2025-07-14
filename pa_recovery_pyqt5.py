@@ -13,7 +13,7 @@ from dateutil.relativedelta import relativedelta
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QProgressBar, QTextEdit, QFileDialog, QSizePolicy, QTabWidget,
-    QGroupBox, QScrollArea, QFrame, QMenu, QDialog, QMessageBox  # Added QMessageBox
+    QGroupBox, QScrollArea, QFrame, QMenu, QDialog, QMessageBox, QStatusBar
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtGui import QFont, QIcon
@@ -22,7 +22,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
 
-# Cache file names
+# --- Constants and cache/file names ---
 CACHE_ALL_EXCEL = "cached_all_statewide.xlsx"
 CACHE_COUNTY_EXCEL = "cached_selected_counties.xlsx"
 CACHE_PICKLE = "cached_cred_data.pkl"
@@ -39,7 +39,7 @@ SELECTED_COUNTIES = [
 REGION_4_COUNTIES = [c for c in SELECTED_COUNTIES if c != "Philadelphia"]
 DELAY_BETWEEN_CREDENTIALS = 10  # seconds
 
-# --- Scraping Functions ---
+# --- Scraping Functions (unchanged) ---
 def get_city_county_df(output_lines):
     try:
         resp = requests.get(COUNTY_URL, headers=HEADERS)
@@ -141,17 +141,13 @@ class ReportWindow(QDialog):
         self.setMinimumSize(800, 600)
         self.setWindowIcon(QIcon("icon.ico"))
         self.all_cred_data = all_cred_data  # dict of {cred: df}
-
-        # Ensure tab_keys is set before build_report_summary
         self.tab_keys = [
             "All", "Philadelphia", "Region 4",
             "Berks", "Bucks", "Chester", "Delaware", "Lancaster", "Montgomery", "Schuylkill"
         ]
         self.report_summary = self.build_report_summary()
-        # Main layout
         layout = QVBoxLayout(self)
 
-        # Top: Download button (menu)
         hbox = QHBoxLayout()
         hbox.addStretch()
         self.download_btn = QPushButton("DOWNLOAD REPORT")
@@ -164,11 +160,9 @@ class ReportWindow(QDialog):
         hbox.addWidget(self.download_btn)
         layout.addLayout(hbox)
 
-        # Tabs
         self.tabs = QTabWidget(self)
         self.tabs.setDocumentMode(True)
         self.tabs.setTabPosition(QTabWidget.North)
-        # Add tabs
         for key in self.tab_keys:
             tab = self.create_county_tab(key)
             self.tabs.addTab(tab, key)
@@ -202,7 +196,8 @@ class ReportWindow(QDialog):
             for cred in CREDENTIALS:
                 df = self.all_cred_data.get(cred, pd.DataFrame())
                 dff = get_county_filter(df, tab)
-                tab_info["total"][cred] = len(dff)
+                active_count = dff['STATUS'].str.lower().eq('active').sum()
+                tab_info["total"][cred] = active_count
             for m, mlabel in zip(months, month_labels):
                 minfo = {"issued": {}, "expired": {}}
                 for cred in CREDENTIALS:
@@ -229,7 +224,7 @@ class ReportWindow(QDialog):
         total = summary.get("total", {})
         months = summary.get("months", {})
 
-        total_box = QGroupBox("Total Credentials")
+        total_box = QGroupBox("Total Active Credentials")
         total_layout = QHBoxLayout(total_box)
         for cred in CREDENTIALS:
             lbl = QLabel(f"<b>{cred}:</b> {total.get(cred,0)}")
@@ -281,7 +276,6 @@ class ReportWindow(QDialog):
             v.addWidget(QLabel(f"Failed to export Excel: {e}"))
             msgbox.exec_()
 
-# --- Export helpers ---
 def export_report_to_pdf(report_summary, months_list, file_path):
     c = canvas.Canvas(file_path, pagesize=letter)
     width, height = letter
@@ -298,7 +292,7 @@ def export_report_to_pdf(report_summary, months_list, file_path):
         y -= 18
         c.setFont("Helvetica", 12)
         t = summary.get("total", {})
-        c.drawString(left, y, f"Total: CRS: {t.get('CRS',0)}   CFRS: {t.get('CFRS',0)}   CRSS: {t.get('CRSS',0)}")
+        c.drawString(left, y, f"Total Active: CRS: {t.get('CRS',0)}   CFRS: {t.get('CFRS',0)}   CRSS: {t.get('CRSS',0)}")
         y -= 18
         for mlabel in months_list:
             m = summary['months'][mlabel]
@@ -324,7 +318,7 @@ def export_report_to_excel(report_summary, months_list, file_path):
         for tab, summary in report_summary.items():
             rows = []
             t = summary.get("total", {})
-            rows.append(["Total", t.get("CRS",0), t.get("CFRS",0), t.get("CRSS",0)])
+            rows.append(["Total Active", t.get("CRS",0), t.get("CFRS",0), t.get("CRSS",0)])
             rows.append(["", "", "", ""])
             rows.append(["Month", "Issued CRS", "Issued CFRS", "Issued CRSS", "Expired CRS", "Expired CFRS", "Expired CRSS"])
             for mlabel in months_list:
@@ -426,11 +420,6 @@ class RecoverySpecialistApp(QWidget):
                 font-family: Consolas;
                 max-height: 320px;
             }
-            QLabel#StatusLine {
-                color: #000;
-                font-size: 16px;
-                font-family: Consolas;
-            }
         """)
 
         main_layout = QVBoxLayout(self)
@@ -476,10 +465,6 @@ class RecoverySpecialistApp(QWidget):
         self.show_output_btn.clicked.connect(self.toggle_log)
         status_layout.addWidget(self.show_output_btn, stretch=0)
 
-        self.status_line = QLabel("", self.status_widget)
-        self.status_line.setObjectName("StatusLine")
-        self.status_line.setMinimumWidth(100)
-        status_layout.addWidget(self.status_line, stretch=2)
         main_layout.addWidget(self.status_widget)
 
         self.log_box = QTextEdit(self)
@@ -516,7 +501,6 @@ class RecoverySpecialistApp(QWidget):
         self.download_pdf_action.triggered.connect(self.download_report_as_pdf)
         self.download_excel_action.triggered.connect(self.download_report_as_excel)
 
-        # --- CLEAR CACHE BUTTON WITH CONFIRMATION PROMPT ---
         self.clear_cache_btn = QPushButton("CLEAR CACHE", self)
         self.clear_cache_btn.setObjectName("ClearCacheBtn")
         self.clear_cache_btn.setStyleSheet(
@@ -524,9 +508,12 @@ class RecoverySpecialistApp(QWidget):
         )
         self.clear_cache_btn.clicked.connect(self.clear_cache)
         btns_hbox.addWidget(self.clear_cache_btn)
-        # ---------------------------------------------------
 
         main_layout.addLayout(btns_hbox)
+
+        self.status_bar = QStatusBar(self)
+        self.status_bar.setStyleSheet("QStatusBar{background:#eee; color:#000; font-size:16px; border-top:1px solid #ccc;}")
+        main_layout.addWidget(self.status_bar)
 
         self.full_output_lines = []
         self.all_excel_path = None
@@ -556,7 +543,7 @@ class RecoverySpecialistApp(QWidget):
                 self.append_log("✅ Loaded cached data.")
                 if os.path.exists(CACHE_META):
                     with open(CACHE_META, "r") as f:
-                        self.status_line.setText(f"Loaded cached data from {f.read().strip()}")
+                        self.status_bar.showMessage(f"Loaded cached data from {f.read().strip()}")
                 return True
             except Exception as e:
                 self.append_log(f"❌ Failed to load cache: {e}")
@@ -588,7 +575,7 @@ class RecoverySpecialistApp(QWidget):
         self.download_county_btn.setVisible(False)
         self.show_report_btn.setVisible(False)
         self.download_report_btn.setVisible(False)
-        self.status_line.setText("Cache cleared. Please scrape new data.")
+        self.status_bar.showMessage("Cache cleared. Please scrape new data.")
         self.append_log("🧹 Cache cleared.")
 
     def start_scrape(self):
@@ -600,7 +587,7 @@ class RecoverySpecialistApp(QWidget):
         self.show_report_btn.setVisible(False)
         self.download_report_btn.setVisible(False)
         self.progress.setValue(0)
-        self.status_line.setText("")
+        self.status_bar.showMessage("")
         self.show_output_btn.setText("SHOW OUTPUT")
         self.log_expanded = False
         self.get_data_btn.setDisabled(True)
@@ -682,14 +669,14 @@ class RecoverySpecialistApp(QWidget):
         percent = int((current/total)*100) if total else 0
         self.progress.setValue(percent)
         if not self.log_expanded:
-            self.status_line.setText(msg)
+            self.status_bar.showMessage(msg)
 
     def append_log(self, line):
         self.full_output_lines.append(line)
         if self.log_expanded:
             self.log_box.append(line)
         else:
-            self.status_line.setText(line)
+            self.status_bar.showMessage(line)
 
     def toggle_log(self):
         self.log_expanded = not self.log_expanded
@@ -702,7 +689,7 @@ class RecoverySpecialistApp(QWidget):
             self.log_box.setVisible(False)
             self.show_output_btn.setText("SHOW OUTPUT")
             if self.full_output_lines:
-                self.status_line.setText(self.full_output_lines[-1])
+                self.status_bar.showMessage(self.full_output_lines[-1])
 
     def scrape_done(self, file_tuple):
         self.get_data_btn.setDisabled(False)
@@ -713,7 +700,7 @@ class RecoverySpecialistApp(QWidget):
         self.download_report_btn.setVisible(bool(self.all_cred_data))
         if os.path.exists(CACHE_META):
             with open(CACHE_META, "r") as f:
-                self.status_line.setText(f"Loaded/cached data from {f.read().strip()}")
+                self.status_bar.showMessage(f"Loaded/cached data from {f.read().strip()}")
 
     def download_all(self):
         self._download_file(self.all_excel_path, "Save statewide data file")
